@@ -10,6 +10,7 @@ from .diff import describe_delta, diff_snapshots
 from .fetch import FetchError, fetch
 from .htmltext import html_to_text
 from .render import RenderError, looks_unrendered, render
+from .select import SelectError, select_text
 from .store import DEFAULT_DIR, SnapshotStore
 
 
@@ -34,6 +35,16 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="reduce fetched HTML to visible text before diffing, so markup-only "
         "churn stops producing false positives",
+    )
+    parser.add_argument(
+        "--select",
+        default=None,
+        metavar="SELECTOR",
+        help="reduce fetched/rendered HTML to the visible text of matching "
+        "elements before diffing, e.g. watch just a price with 'span.price'; "
+        "supports a small CSS subset (tag, .class, #id, and compounds like "
+        "span.price). Exits non-zero if the selector is unsupported or matches "
+        "no elements",
     )
     parser.add_argument(
         "--render",
@@ -74,6 +85,16 @@ def main(argv: list[str] | None = None) -> int:
     except FetchError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return EXIT_FETCH_ERROR
+
+    # EXIT_FETCH_ERROR (1) covers fetch and selection errors alike.
+    # Use `is not None` so an empty --select '' errors loudly instead of being
+    # treated as unset (consistent with the feature's fail-loudly stance).
+    if args.select is not None:
+        try:
+            current = select_text(current, args.select)
+        except SelectError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return EXIT_FETCH_ERROR
 
     if args.text:
         current = html_to_text(current)

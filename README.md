@@ -50,6 +50,42 @@ playwright install chromium
 If Playwright (or its browser) is missing, `--render` fails with a clear message
 telling you which step to run.
 
+### Selecting an element (`--select`)
+
+Often you only care about one part of a page — a price, a status badge, a stock
+count — and want the surrounding markup churn to stay out of the diff. `--select`
+reduces the fetched (or rendered) HTML to the visible text of the elements that
+match a small CSS-selector subset, before diffing:
+
+```bash
+# Watch just the price element
+python -m snapdiff https://shop.example/product --select 'span.price'
+```
+
+Supported selectors (one compound selector only):
+
+- a tag name — `span`
+- one or more classes — `.price`, `.badge.sale`
+- an id — `#total`
+- compounds of the above — `span.price`, `div#cart.summary`
+
+Explicitly out of scope (rejected with a non-zero exit): descendant/child
+combinators (`div span`, `div > span`), sibling combinators (`~`, `+`),
+attribute selectors (`[data-x]`), pseudo-classes (`:first-child`), selector
+lists (`a, b`), and the universal selector (`*`).
+
+Both an unsupported selector and a selector that matches no elements exit
+non-zero (code `1`), so a broken or stale selector fails loudly instead of
+silently diffing nothing.
+
+Because `--select` already reduces to visible text, `--text` is redundant when
+you use it. `--select` combines naturally with `--render` and `--fail-on-change`
+for price monitoring of JS-heavy pages:
+
+```bash
+python -m snapdiff --render --select 'span.money' --fail-on-change https://shop.example/product
+```
+
 ### Exit codes
 
 | Code | Meaning |
@@ -77,6 +113,8 @@ fetch (urllib)  ->  diff (difflib)  ->  describe  ->  save baseline (files)
 - `snapdiff/fetch.py` — the only network code.
 - `snapdiff/render.py` — optional headless-browser fallback (`--render`); the only
   browser code, with Playwright imported lazily.
+- `snapdiff/select.py` — reduce HTML to matching elements' text (`--select`);
+  a tiny CSS-selector subset, pure stdlib.
 - `snapdiff/store.py` — read/write snapshots on disk.
 - `snapdiff/diff.py` — compute and describe the delta (pure functions).
 - `snapdiff/cli.py` — wires it together.

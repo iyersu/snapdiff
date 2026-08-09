@@ -169,6 +169,72 @@ class CliRenderFlagTests(unittest.TestCase):
         render_mock.assert_called_once_with("https://site.test")
 
 
+class CliSelectFlagTests(unittest.TestCase):
+    """Exercise the --select reduction path offline by patching fetch/render."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.dir = self._tmp.name
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def _run(self, content, *extra):
+        with mock.patch.object(cli, "fetch", return_value=content):
+            return cli.main(["https://site.test", "--dir", self.dir, *extra])
+
+    def test_non_selected_churn_ignored(self):
+        # Baseline watches only the .price node.
+        self._run(
+            '<div class="price">$5</div><div class="footer">v1</div>',
+            "--select", ".price",
+        )
+        # Non-price content changes; the selected text is identical.
+        code = self._run(
+            '<div class="price">$5</div><div class="footer">v2 changed</div>',
+            "--select", ".price", "--fail-on-change",
+        )
+        self.assertEqual(code, cli.EXIT_OK)
+
+    def test_selected_change_detected(self):
+        self._run('<div class="price">$5</div>', "--select", ".price")
+        code = self._run(
+            '<div class="price">$7</div>', "--select", ".price", "--fail-on-change"
+        )
+        self.assertEqual(code, cli.EXIT_CHANGED)
+
+    def test_no_match_exits_fetch_error(self):
+        code = self._run("<div>no price here</div>", "--select", ".price")
+        self.assertEqual(code, cli.EXIT_FETCH_ERROR)
+
+    def test_unsupported_selector_exits_fetch_error(self):
+        code = self._run('<div><span>x</span></div>', "--select", "div > span")
+        self.assertEqual(code, cli.EXIT_FETCH_ERROR)
+
+    def test_combined_with_render(self):
+        rendered = '<html><body><div class="price">$9</div></body></html>'
+        render_mock = mock.Mock(return_value=rendered)
+        with mock.patch.object(cli, "fetch", return_value=""), \
+                mock.patch.object(cli, "render", render_mock):
+            code = cli.main(
+                ["https://site.test", "--dir", self.dir, "--render",
+                 "--select", ".price"]
+            )
+        self.assertEqual(code, cli.EXIT_OK)
+        render_mock.assert_called_once_with("https://site.test")
+
+        # Baseline is the selected text; an identical rendered re-run is "No change".
+        with mock.patch.object(cli, "fetch", return_value=""), \
+                mock.patch.object(cli, "render", return_value=rendered):
+            out = _capture(
+                lambda: cli.main(
+                    ["https://site.test", "--dir", self.dir, "--render",
+                     "--select", ".price", "--fail-on-change"]
+                )
+            )
+        self.assertIn("No change", out)
+
+
 def _capture(fn):
     import contextlib
     import io
