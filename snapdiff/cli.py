@@ -32,8 +32,20 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="do not update the saved baseline (dry run)",
     )
+    parser.add_argument(
+        "--fail-on-change",
+        action="store_true",
+        help="exit with code 2 when a change is detected (for cron/CI monitoring); "
+        "the first-run baseline is not treated as a change",
+    )
     parser.add_argument("--version", action="version", version=f"snapdiff {__version__}")
     return parser
+
+
+# Exit codes
+EXIT_OK = 0
+EXIT_FETCH_ERROR = 1
+EXIT_CHANGED = 2
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -44,7 +56,7 @@ def main(argv: list[str] | None = None) -> int:
         current = fetch(args.url)
     except FetchError as exc:
         print(f"error: {exc}", file=sys.stderr)
-        return 1
+        return EXIT_FETCH_ERROR
 
     previous = store.load(args.url)
     delta = diff_snapshots(previous, current)
@@ -57,7 +69,10 @@ def main(argv: list[str] | None = None) -> int:
     if not args.no_save:
         store.save(args.url, current)
 
-    return 0
+    # A first-run baseline is not a change worth failing on.
+    if args.fail_on_change and delta.changed and not delta.is_first_run:
+        return EXIT_CHANGED
+    return EXIT_OK
 
 
 if __name__ == "__main__":
