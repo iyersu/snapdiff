@@ -29,6 +29,27 @@ python -m snapdiff https://example.com --dir /path/to/snapshots
 python -m snapdiff https://example.com --fail-on-change
 ```
 
+### JS-rendered pages (optional)
+
+Some pages ship almost no HTML and paint their content with JavaScript. For those,
+`--render` re-fetches the page with a headless browser:
+
+```bash
+python -m snapdiff https://example.com --render
+```
+
+It only kicks in when the plain fetch looks empty or effectively text-less, so the
+normal stdlib fetch path is unchanged for everything else. Rendering needs the
+optional Playwright extra, installed in two steps:
+
+```bash
+pip install -r requirements-render.txt
+playwright install chromium
+```
+
+If Playwright (or its browser) is missing, `--render` fails with a clear message
+telling you which step to run.
+
 ### Exit codes
 
 | Code | Meaning |
@@ -54,6 +75,8 @@ fetch (urllib)  ->  diff (difflib)  ->  describe  ->  save baseline (files)
 ```
 
 - `snapdiff/fetch.py` — the only network code.
+- `snapdiff/render.py` — optional headless-browser fallback (`--render`); the only
+  browser code, with Playwright imported lazily.
 - `snapdiff/store.py` — read/write snapshots on disk.
 - `snapdiff/diff.py` — compute and describe the delta (pure functions).
 - `snapdiff/cli.py` — wires it together.

@@ -8,10 +8,12 @@ You are the **code-writer** for snapdiff, a tiny stdlib-only Python CLI that
 fetches a URL, diffs it against the last snapshot, and describes the delta.
 
 Read `CLAUDE.md` first and obey its hard constraints without exception:
-- The only external integration is an outbound HTTP fetch.
-- Standard library only — never add a third-party runtime dependency.
-- Networking lives only in `snapdiff/fetch.py`. Everything else stays offline and
-  trivially unit-testable.
+- Content enters only by fetching the target URL. The core is standard-library
+  only. The single sanctioned dependency is `playwright`, and only for the opt-in
+  `--render` mode — import it lazily so the package and tests work without it.
+- Networking lives only in `snapdiff/fetch.py` (plain HTTP) and `snapdiff/render.py`
+  (optional headless browser). Everything else stays offline and trivially
+  unit-testable.
 - Keep side effects (disk, network, stdout) at the edges (`cli.py`). Prefer pure
   functions in `diff.py` and `store.py`.
 
