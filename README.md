@@ -24,7 +24,18 @@ python -m snapdiff https://example.com --no-save
 
 # Store snapshots somewhere else
 python -m snapdiff https://example.com --dir /path/to/snapshots
+
+# Exit non-zero when the page changed (handy for cron/CI monitoring)
+python -m snapdiff https://example.com --fail-on-change
 ```
+
+### Exit codes
+
+| Code | Meaning |
+| ---- | ------- |
+| `0`  | Success — no change, or `--fail-on-change` not set |
+| `1`  | Fetch failed |
+| `2`  | A change was detected (only with `--fail-on-change`; the first-run baseline never counts as a change) |
 
 Example output on a change:
 
