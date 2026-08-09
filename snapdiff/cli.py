@@ -8,6 +8,7 @@ import sys
 from . import __version__
 from .diff import describe_delta, diff_snapshots
 from .fetch import FetchError, fetch
+from .htmltext import html_to_text
 from .store import DEFAULT_DIR, SnapshotStore
 
 
@@ -26,6 +27,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--show-diff",
         action="store_true",
         help="print the full unified diff in addition to the summary",
+    )
+    parser.add_argument(
+        "--text",
+        action="store_true",
+        help="reduce fetched HTML to visible text before diffing, so markup-only "
+        "churn stops producing false positives",
     )
     parser.add_argument(
         "--no-save",
@@ -57,6 +64,9 @@ def main(argv: list[str] | None = None) -> int:
     except FetchError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return EXIT_FETCH_ERROR
+
+    if args.text:
+        current = html_to_text(current)
 
     previous = store.load(args.url)
     delta = diff_snapshots(previous, current)
