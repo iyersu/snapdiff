@@ -9,6 +9,7 @@ from . import __version__
 from .diff import describe_delta, diff_snapshots
 from .fetch import FetchError, fetch
 from .htmltext import html_to_text
+from .render import RenderError, looks_unrendered, render
 from .store import DEFAULT_DIR, SnapshotStore
 
 
@@ -33,6 +34,13 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="reduce fetched HTML to visible text before diffing, so markup-only "
         "churn stops producing false positives",
+    )
+    parser.add_argument(
+        "--render",
+        action="store_true",
+        help="if the plain fetch looks empty/unrendered (e.g. a JS-heavy page), "
+        "re-fetch it with a headless browser; needs the optional Playwright extra "
+        "(pip install -r requirements-render.txt && playwright install chromium)",
     )
     parser.add_argument(
         "--no-save",
@@ -61,6 +69,8 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         current = fetch(args.url)
+        if args.render and looks_unrendered(current):
+            current = render(args.url)
     except FetchError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return EXIT_FETCH_ERROR

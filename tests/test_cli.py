@@ -101,6 +101,74 @@ class CliTextFlagTests(unittest.TestCase):
         self.assertEqual(code, cli.EXIT_OK)
 
 
+class CliRenderFlagTests(unittest.TestCase):
+    """Exercise the --render fallback decision offline.
+
+    Patches both cli.fetch and cli.render so no browser or network is used.
+    """
+
+    # Substantial real HTML whose visible text is well past MIN_VISIBLE_CHARS.
+    GOOD_HTML = (
+        "<html><body><p>This is a real page with plenty of visible text "
+        "past the threshold.</p></body></html>"
+    )
+    RENDERED_HTML = (
+        "<html><body><p>Fully rendered content produced by the headless "
+        "browser fallback.</p></body></html>"
+    )
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.dir = self._tmp.name
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def test_fallback_triggers_on_empty_fetch(self):
+        render_mock = mock.Mock(return_value=self.RENDERED_HTML)
+        with mock.patch.object(cli, "fetch", return_value=""), \
+                mock.patch.object(cli, "render", render_mock):
+            code = cli.main(["https://site.test", "--dir", self.dir, "--render"])
+        self.assertEqual(code, cli.EXIT_OK)
+        render_mock.assert_called_once_with("https://site.test")
+
+        # The rendered HTML became the baseline: an identical rendered re-run
+        # is "No change".
+        with mock.patch.object(cli, "fetch", return_value=""), \
+                mock.patch.object(cli, "render", return_value=self.RENDERED_HTML):
+            out = _capture(
+                lambda: cli.main(
+                    ["https://site.test", "--dir", self.dir, "--render",
+                     "--fail-on-change"]
+                )
+            )
+        self.assertIn("No change", out)
+
+    def test_fallback_not_triggered_on_good_content(self):
+        render_mock = mock.Mock(side_effect=AssertionError("render must not run"))
+        with mock.patch.object(cli, "fetch", return_value=self.GOOD_HTML), \
+                mock.patch.object(cli, "render", render_mock):
+            code = cli.main(["https://site.test", "--dir", self.dir, "--render"])
+        self.assertEqual(code, cli.EXIT_OK)
+        render_mock.assert_not_called()
+
+    def test_flag_off_never_renders(self):
+        render_mock = mock.Mock(side_effect=AssertionError("render must not run"))
+        with mock.patch.object(cli, "fetch", return_value=""), \
+                mock.patch.object(cli, "render", render_mock):
+            code = cli.main(["https://site.test", "--dir", self.dir])
+        self.assertEqual(code, cli.EXIT_OK)
+        render_mock.assert_not_called()
+
+    def test_render_error_surfaces_as_fetch_error_code(self):
+        render_mock = mock.Mock(side_effect=cli.RenderError("nope"))
+        with mock.patch.object(cli, "fetch", return_value=""), \
+                mock.patch.object(cli, "render", render_mock):
+            code = cli.main(["https://site.test", "--dir", self.dir, "--render"])
+        self.assertEqual(code, cli.EXIT_FETCH_ERROR)
+        render_mock.assert_called_once_with("https://site.test")
+
+
 def _capture(fn):
     import contextlib
     import io

@@ -12,9 +12,13 @@ you report findings ranked most-serious first.
 
 ## What you enforce
 
-1. **Constraints.** Is the only network call still an outbound HTTP fetch, and does
-   it still live only in `snapdiff/fetch.py`? Any new third-party dependency, any
-   second integration, any database/queue/browser is an automatic block.
+1. **Constraints.** Does content still enter only by fetching the target URL, with
+   networking confined to `snapdiff/fetch.py` (plain HTTP) and `snapdiff/render.py`
+   (the optional headless-render mode)? Playwright is the one sanctioned dependency
+   and only for `--render`; it must be a *lazy* import so the package imports and
+   the tests pass with Playwright absent. Any OTHER third-party dependency, any
+   second integration, any database/queue, or making the core depend on a browser
+   is an automatic block.
 2. **Correctness.** Walk the diff for real bugs: wrong first-run behavior, mangled
    snapshots, off-by-one in the delta, unhandled fetch errors, path/hash collisions
    in the store, encoding issues.
